@@ -1,0 +1,73 @@
+---
+title: 'Random Forest Analysis'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggplot2)
+library(kableExtra)
+```
+
+
+## my_rf_cv
+
+```{r, message = FALSE}
+# Load penguin data from Data folder
+my_penguins <- read_csv("../Data/my_penguins.csv")
+```
+
+```{r}
+# Load random forest code
+source("../Code/my_rf_cv.R")
+
+# Perform analysis using my_rf_cv
+mse_matrix <- matrix(nrow = 90, ncol = 2)
+ks <- c(2, 5, 10)
+for (i in 1:3) {
+  k <- ks[i]
+  for (j in 1:30) {
+    mse_matrix[(i-1)*30+j, 1] <- k
+    mse_matrix[(i-1)*30+j, 2] <- my_rf_cv(k)
+  }
+}
+mse_df <- data.frame(k = mse_matrix[,1], mse = mse_matrix[,2])
+
+ggplot(data = mse_df, aes(group = k, x = k, y = mse)) + 
+  geom_boxplot() +
+  labs(title = "MSE by Number of Folds", x = "Number of Folds", y = "MSE") +
+  theme_bw() + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r, message = FALSE}
+# Save this plot to the Analysis/Figures directory
+ggsave("mse_by_k.png", plot = last_plot(), 
+       path = "../Output/Figures")
+```
+
+```{r}
+# Get vectors of MSE by value of k
+mse_k2 <- (mse_df %>% dplyr::filter(k == 2) %>% dplyr::select(mse))$mse
+mse_k5 <- (mse_df %>% dplyr::filter(k == 5) %>% dplyr::select(mse))$mse
+mse_k10 <- (mse_df %>% dplyr::filter(k == 10) %>% dplyr::select(mse))$mse
+
+results_df <- data.frame(cbind(mse_k2, mse_k5, mse_k10))
+colnames(results_df) <- c("k = 2", "k = 5", "k = 10")
+write_csv(results_df, "../Output/Results/raw_results.csv")
+
+mse_stats_mat <- rbind(c(2, mean(mse_k2), sd(mse_k2)), 
+                       c(5, mean(mse_k5), sd(mse_k5)), 
+                       c(10, mean(mse_k10), sd(mse_k10)))
+
+mse_stats_df <- data.frame(k = mse_stats_mat[,1],
+                           mse_mean = mse_stats_mat[,2], 
+                           mse_sd = mse_stats_mat[,3])
+kable_styling(kable(mse_stats_df))
+
+# Save the summary statistics as an R object
+saveRDS(mse_stats_df, "../Output/Results/summary.rds")
+```
+
+The box plot shows that first of all, the mean MSE decreases as the number of folds increases, with the largest decrease happening between k = 2 and k = 5. It also shows the range and standard deviation of the MSEs decreasing significantly as the number of folds increases. This is substantiated by the table which shows the mean dropping by `r round((1 - (mse_stats_df$mse_mean[2] / mse_stats_df$mse_mean[1])) * 100, digits = 1)`% from k = 2 to k = 5 and then dropping `r round((1 - (mse_stats_df$mse_mean[3] / mse_stats_df$mse_mean[2])) * 100, digits = 1)`% from k = 5 to k = 10, and also shows the standard deviation decreasing by about `r round((1 - (mse_stats_df$mse_sd[2] / mse_stats_df$mse_sd[1])) * 100, digits = 1)`% from k = 2 to k = 5 and then decreasing another `r round((1 - (mse_stats_df$mse_sd[3] / mse_stats_df$mse_sd[2])) * 100, digits = 1)`% from k = 5 to k = 10. This shows that the relative magnitude of the standard deviation's decrease is larger than the relative magnitude that the mean decreases by. I think that MSE decreases as number of folds increases perhaps because when there are fewer folds, the test data sets are quite large relative to the size of the training sets, which makes me think that there is not enough data to train the iteration of the cross validation in order to accurately predict the number of test data points that are given, and this lower accuracy results in higher MSE. This improves as the number of folds increase as the test set becomes small relative to all the data points that the model is trained on. I think this is also related to why the standard deviation of the MSE decreases because when there are fewer folds, if the data is split in a way where the training and test data is fairly different or fairly the same then you'll see relatively high and low MSE's, respectively. So the way the data is split can affect the MSE more when there are less folds compared to when there are more folds when the splitting isn't as impactful on the overall MSE.

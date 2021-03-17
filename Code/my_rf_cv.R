@@ -35,7 +35,8 @@ my_rf_cv <- function(k) {
       data = data_train, ntree = 100)
     predictions <- stats::predict(model, data_test[, -6])
 
-    sse <- sse + sum(((train_fold %>% dplyr::filter(split == i))[6] - predictions)^2)
+    sse <- sse +
+      sum(((train_fold %>% dplyr::filter(split == i))[6] - predictions)^2)
   }
 
   return(sse / nrow(my_penguins))
